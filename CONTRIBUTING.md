@@ -71,3 +71,25 @@ popd
 ```
 
 The value of EASTL_BUILD_BENCHMARK can be toggled to `ON` in order to build projects that include the benchmark program.
+
+### Building using Bazel
+
+EASTL can also be built using [Bazel Build](https://www.bazel.build).
+
+To build EASTL:
+
+```bash
+bazel build //:eastl
+```
+
+To run the tests:
+
+```bash
+bazel run //:test-runner
+```
+
+To run the benchmarks:
+
+```bash
+bazel run //:benchmark
+```
