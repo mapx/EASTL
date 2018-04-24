@@ -9,8 +9,10 @@ compiler:
   - clang
 
 env:
-  - EASTL_CONFIG=Debug
-  - EASTL_CONFIG=Release
+  - EASTL_CONFIG=Debug BUILDER=cmake
+  - EASTL_CONFIG=Release BUILDER=cmake
+  - EASTL_CONFIG=Debug BUILDER=bazel
+  - EASTL_CONFIG=Release BUILDER=bazel
 
 addons:
   apt:
@@ -23,6 +25,8 @@ addons:
       - cmake-data
       - g++-7
       - clang-5.0
+      - wget
+      - pkg-config
 
 matrix:
     include:
@@ -34,28 +38,41 @@ matrix:
       - os: osx
         compiler: gcc
 
+before_install:
+    - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then wget https://github.com/bazelbuild/bazel/releases/download/0.20.0/bazel_0.20.0-linux-x86_64.deb         ;fi
+    - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then wget https://github.com/bazelbuild/bazel/releases/download/0.20.0/bazel_0.20.0-linux-x86_64.deb.sha256  ;fi
+    - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sha256sum -c bazel_0.20.0-linux-x86_64.deb.sha256                                                       ;fi
+    - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo dpkg -i bazel_0.20.0-linux-x86_64.deb                                                              ;fi
+    - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then wget https://github.com/bazelbuild/bazel/releases/download/0.20.0/bazel-0.20.0-installer-darwin-x86_64.sh ;fi
+    - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then sh bazel-0.20.0-installer-darwin-x86_64.sh                                                                ;fi
+
 install:
 # MOJI check; exit 1 if non-ascii characters detected in C++
-  - if [[ -n "$USE_MOJI_CHECK" && -n `git grep -P "[^[:ascii:]]" source test` ]]; then echo "Moji Detected" && exit 1   ;fi
-  - if [[ -n "$USE_MOJI_CHECK" ]]; then exit 0                                                                          ;fi
-  - if [[ "$CXX" == "g++" ]]; then export CC="gcc-7"                                                                    ;fi
-  - if [[ "$CXX" == "g++" ]]; then export CXX="g++-7"                                                                   ;fi
+  - if [[ -n "$USE_MOJI_CHECK" && -n `git grep -P "[^[:ascii:]]" source test` ]]; then echo "Moji Detected" && exit 1             ;fi
+  - if [[ -n "$USE_MOJI_CHECK" ]]; then exit 0                                                                                    ;fi
+  - if [[ "$CXX" == "g++" ]]; then export CC="gcc-7"                                                                              ;fi
+  - if [[ "$CXX" == "g++" ]]; then export CXX="g++-7"                                                                             ;fi
 
 # Universal Setup
 before_script:
-  - mkdir build_$EASTL_CONFIG
-  - cd build_$EASTL_CONFIG
-  - cmake .. -DEASTL_BUILD_BENCHMARK:BOOL=ON -DEASTL_BUILD_TESTS:BOOL=ON
-  - cmake --build . --config $EASTL_CONFIG
+  - if [[ "$BUILDER" == "cmake" ]]; then mkdir build_$EASTL_CONFIG                                                                ;fi
+  - if [[ "$BUILDER" == "cmake" ]]; then cd build_$EASTL_CONFIG                                                                   ;fi
+  - if [[ "$BUILDER" == "cmake" ]]; then cmake .. -DEASTL_BUILD_BENCHMARK:BOOL=ON -DEASTL_BUILD_TESTS:BOOL=ON                     ;fi
+  - if [[ "$BUILDER" == "cmake" ]]; then cmake --build . --config $EASTL_CONFIG                                                   ;fi
 
 script:
   # Run Tests
-  - cd $TRAVIS_BUILD_DIR/build_$EASTL_CONFIG/test
-  - ctest -C $EASTL_CONFIG -V || exit 1
+  - if [[ "$BUILDER" == "cmake" ]]; then cd $TRAVIS_BUILD_DIR/build_$EASTL_CONFIG/test                                            ;fi
+  - if [[ "$BUILDER" == "cmake" ]]; then ctest -C $EASTL_CONFIG -V || exit 1                                                      ;fi
+  - if [[ "$BUILDER" == "bazel" && "$EASTL_CONFIG" == "Debug" ]]; then bazel run -c dbg --copt "-DEASTL_DEBUG=1" //:test-runner   ;fi
+  - if [[ "$BUILDER" == "bazel" && "$EASTL_CONFIG" == "Release" ]]; then bazel run -c opt --copt "-DEASTL_DEBUG=0" //:test-runner ;fi
 
   # Run Benchmarks
-  - cd $TRAVIS_BUILD_DIR/build_$EASTL_CONFIG/benchmark
-  - ctest -C $EASTL_CONFIG -V || exit 1
+  - if [[ "$BUILDER" == "cmake" ]]; then cd $TRAVIS_BUILD_DIR/build_$EASTL_CONFIG/benchmark                                       ;fi
+  - if [[ "$BUILDER" == "cmake" ]]; then ctest -C $EASTL_CONFIG -V || exit 1                                                      ;fi
+  - if [[ "$BUILDER" == "bazel" && "$EASTL_CONFIG" == "Debug" ]]; then bazel run -c dbg --copt "-DEASTL_DEBUG=1" //:benchmark     ;fi
+  - if [[ "$BUILDER" == "bazel" && "$EASTL_CONFIG" == "Release" ]]; then bazel run -c opt --copt "-DEASTL_DEBUG=0" //:benchmark   ;fi
+
 
 branches:
   except:
